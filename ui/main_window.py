@@ -101,12 +101,6 @@ class SettingsDialog(QDialog):
         
         app_layout.addWidget(self.app_language_combo, 0, 1)
         
-        app_layout.addWidget(QLabel("Batch Size:"), 1, 0)
-        self.batch_size_spin = QSpinBox()
-        self.batch_size_spin.setRange(1, 100)
-        self.batch_size_spin.setValue(self.settings.get('batch_size', 50))
-        app_layout.addWidget(self.batch_size_spin, 1, 1)
-        
         app_group.setLayout(app_layout)
         layout.addWidget(app_group)
         
@@ -127,8 +121,7 @@ class SettingsDialog(QDialog):
         
         return {
             'api_key': self.api_key_input.text(),
-            'app_language': app_lang_code,
-            'batch_size': self.batch_size_spin.value()
+            'app_language': app_lang_code
         }
 
 class ExcelTranslatorApp(QMainWindow):
@@ -389,10 +382,7 @@ class ExcelTranslatorApp(QMainWindow):
                 return
             
             self.deepl_client = DeepLClient(api_key)
-            self.translation_manager = TranslationManager(
-                self.deepl_client, 
-                self.settings.get('batch_size', 50)
-            )
+            self.translation_manager = TranslationManager(self.deepl_client)
             
             self.log_message("DeepL client initialized successfully")
             self.status_bar.showMessage("DeepL API connected")
@@ -421,6 +411,14 @@ class ExcelTranslatorApp(QMainWindow):
             
             # Get sheet information
             self.sheet_info = self.excel_reader.get_sheet_info()
+            
+            # Auto-calculate optimal batch size if translation manager is available
+            if self.translation_manager:
+                from excel.utils import ExcelUtils
+                file_characteristics = ExcelUtils.analyze_file_characteristics(file_path, self.sheet_info)
+                optimal_batch_size = self.translation_manager.set_optimal_batch_size_from_file(file_characteristics)
+                
+                self.log_message(f"Auto-calculated optimal batch size: {optimal_batch_size} for {file_characteristics['total_texts']} texts")
             
             # Update UI
             self.file_path_label.setText(os.path.basename(file_path))

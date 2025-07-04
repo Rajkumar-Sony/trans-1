@@ -132,9 +132,9 @@ class BatchProcessor:
             avg_text_length: Average length of texts (characters)
             file_size_mb: File size in MB
         """
-        from excel.utils import calculate_optimal_batch_size
+        from excel.utils import ExcelUtils
         
-        optimal_size = calculate_optimal_batch_size(total_texts, avg_text_length, file_size_mb)
+        optimal_size = ExcelUtils.calculate_optimal_batch_size(total_texts, avg_text_length, file_size_mb)
         self.batch_size = optimal_size
         
         self.logger.info(f"Auto-calculated optimal batch size: {optimal_size} for {total_texts} texts")
@@ -193,15 +193,14 @@ class TranslationTask:
 class TranslationManager:
     """Manages multiple translation tasks with threading support."""
     
-    def __init__(self, deepl_client: DeepLClient, batch_size: int = 50):
+    def __init__(self, deepl_client: DeepLClient):
         """Initialize translation manager.
         
         Args:
             deepl_client: DeepL client instance
-            batch_size: Batch size for processing
         """
         self.deepl_client = deepl_client
-        self.batch_processor = BatchProcessor(deepl_client, batch_size)
+        self.batch_processor = BatchProcessor(deepl_client)
         self.tasks = []
         self.current_task = None
         self.thread = None
@@ -210,6 +209,36 @@ class TranslationManager:
     def add_task(self, task: TranslationTask):
         """Add a translation task."""
         self.tasks.append(task)
+        
+        # Note: Optimal batch size is now calculated in load_excel_file
+        # This method is kept for backward compatibility
+    
+    def _update_optimal_batch_size(self, file_size_mb: float = 0):
+        """Update the optimal batch size based on current tasks.
+        
+        Args:
+            file_size_mb: File size in MB for more accurate calculation
+        """
+        if not self.tasks:
+            return
+            
+        # Calculate total texts and estimate average text length
+        total_texts = sum(len(task.texts) for task in self.tasks)
+        all_texts = []
+        for task in self.tasks:
+            all_texts.extend(task.texts)
+        
+        if all_texts:
+            avg_text_length = sum(len(text) for text in all_texts) / len(all_texts)
+        else:
+            avg_text_length = 50  # Default
+        
+        # Set optimal batch size
+        optimal_size = self.batch_processor.set_optimal_batch_size(total_texts, avg_text_length, file_size_mb)
+        
+        self.logger.info(f"Auto-calculated optimal batch size: {optimal_size} for {total_texts} texts (avg length: {avg_text_length:.1f})")
+        
+        return optimal_size
     
     def start_processing(self, 
                         progress_callback: Optional[Callable[[str, int], None]] = None,
@@ -286,6 +315,19 @@ class TranslationManager:
         total_progress = sum(task.progress for task in self.tasks)
         return int(total_progress / len(self.tasks))
     
+    def set_optimal_batch_size_from_file(self, file_characteristics: Dict[str, Any]):
+        """Set optimal batch size based on file characteristics.
+        
+        Args:
+            file_characteristics: Dictionary containing file analysis results
+        """
+        optimal_size = file_characteristics.get('optimal_batch_size', 50)
+        self.batch_processor.batch_size = optimal_size
+        
+        self.logger.info(f"Set optimal batch size: {optimal_size} for {file_characteristics.get('total_texts', 0)} texts")
+        
+        return optimal_size
+
     def clear_tasks(self):
         """Clear all tasks."""
         self.tasks.clear()
