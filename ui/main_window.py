@@ -45,25 +45,31 @@ class TranslationThread(QThread):
 class SettingsDialog(QDialog):
     """Settings dialog for API key and app configuration."""
     
+    language_changed = pyqtSignal(str)  # Signal emitted when language changes
+    
     def __init__(self, parent=None, settings=None):
         super().__init__(parent)
         self.settings = settings or {}
+        self.parent_app = parent
         self.setWindowTitle("Settings")
-        self.setFixedSize(400, 300)
+        self.setFixedSize(450, 300)  # Increased size for better layout
         self.init_ui()
     
     def init_ui(self):
         """Initialize the settings UI."""
-        # Set smaller font for the entire dialog
+        # Set appropriate font for the entire dialog
         dialog_font = QFont()
-        dialog_font.setPointSize(9)  # Reduced font size for the dialog
+        dialog_font.setPointSize(10)  # Standard readable font size
         self.setFont(dialog_font)
         
         layout = QVBoxLayout()
+        layout.setSpacing(15)  # Add spacing between sections
+        layout.setContentsMargins(20, 20, 20, 20)  # Add margins
         
         # API Key section
         api_group = QGroupBox("DeepL API Configuration")
         api_layout = QGridLayout()
+        api_layout.setSpacing(10)  # Add spacing within the group
         
         api_layout.addWidget(QLabel("API Key:"), 0, 0)
         self.api_key_input = QLineEdit()
@@ -77,6 +83,7 @@ class SettingsDialog(QDialog):
         # App Configuration section
         app_group = QGroupBox("Application Settings")
         app_layout = QGridLayout()
+        app_layout.setSpacing(10)  # Add spacing within the group
         
         app_layout.addWidget(QLabel("App Language:"), 0, 0)
         self.app_language_combo = QComboBox()
@@ -84,13 +91,13 @@ class SettingsDialog(QDialog):
         # Use language display names for app language too
         app_languages = ["🇺🇸 English", "🇯🇵 日本語 (Japanese)", "🇻🇳 Tiếng Việt (Vietnamese)"]
         self.app_language_combo.addItems(app_languages)
-        self.app_language_combo.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.app_language_combo.setFixedWidth(100)  # Very small width
-        self.app_language_combo.setFixedHeight(12)  # Ultra compressed height
         
-        # Set smaller font for the combo box
+        # Set proper sizing and font for the combo box
+        self.app_language_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        
+        # Set appropriate font for the combo box
         combo_font = QFont()
-        combo_font.setPointSize(6)  # Ultra small font size
+        combo_font.setPointSize(6)  # Standard readable font size
         self.app_language_combo.setFont(combo_font)
         
         # Set current selection based on saved setting
@@ -98,6 +105,9 @@ class SettingsDialog(QDialog):
         app_lang_mapping = {'en': '🇺🇸 English', 'ja': '🇯🇵 日本語 (Japanese)', 'vi': '🇻🇳 Tiếng Việt (Vietnamese)'}
         current_app_display = app_lang_mapping.get(current_app_lang, '🇺🇸 English')
         self.app_language_combo.setCurrentText(current_app_display)
+        
+        # Connect signal for instant language change
+        self.app_language_combo.currentTextChanged.connect(self.on_language_changed)
         
         app_layout.addWidget(self.app_language_combo, 0, 1)
         
@@ -111,6 +121,22 @@ class SettingsDialog(QDialog):
         layout.addWidget(button_box)
         
         self.setLayout(layout)
+    
+    def on_language_changed(self, display_text):
+        """Handle language change in the combo box."""
+        # Convert display name back to code
+        app_lang_reverse_mapping = {'🇺🇸 English': 'en', '🇯🇵 日本語 (Japanese)': 'ja', '🇻🇳 Tiếng Việt (Vietnamese)': 'vi'}
+        lang_code = app_lang_reverse_mapping.get(display_text, 'en')
+        
+        # Update settings immediately
+        self.settings['app_language'] = lang_code
+        
+        # Emit signal to parent for instant update
+        self.language_changed.emit(lang_code)
+        
+        # Update parent app if available
+        if self.parent_app:
+            self.parent_app.update_language_instantly(lang_code)
     
     def get_settings(self) -> Dict[str, Any]:
         """Get the current settings from the dialog."""
@@ -620,21 +646,57 @@ class ExcelTranslatorApp(QMainWindow):
             current_text = self.target_lang_combo.currentText()
             return self.get_language_code(current_text)
         return self.settings.get('last_target_lang', 'en')
-
-def main():
-    """Main application entry point."""
-    app = QApplication(sys.argv)
     
-    # Set application properties
-    app.setApplicationName("Excel Translator")
-    app.setApplicationVersion("1.0")
-    app.setOrganizationName("Excel Translator")
+    def update_language_instantly(self, lang_code: str):
+        """Update the application language instantly.
+        
+        Args:
+            lang_code: Language code (en, ja, vi)
+        """
+        # Update settings
+        self.settings['app_language'] = lang_code
+        
+        # Reload translations
+        self.load_translations()
+        
+        # Update UI texts
+        self.update_ui_texts()
+        
+        # Save settings
+        self.save_settings()
+        
+        self.log_message(f"Language changed to: {lang_code}")
     
-    # Create and show main window
-    window = ExcelTranslatorApp()
-    window.show()
-    
-    sys.exit(app.exec())
-
-if __name__ == "__main__":
-    main()
+    def update_ui_texts(self):
+        """Update all UI texts with current translations."""
+        # Update window title
+        self.setWindowTitle(self.tr("app_title"))
+        
+        # Update button texts
+        if hasattr(self, 'select_file_btn'):
+            self.select_file_btn.setText(self.tr("select_file"))
+        if hasattr(self, 'translate_btn'):
+            self.translate_btn.setText(self.tr("translate"))
+        if hasattr(self, 'export_btn'):
+            self.export_btn.setText(self.tr("export"))
+        if hasattr(self, 'cancel_btn'):
+            self.cancel_btn.setText(self.tr("cancel"))
+        
+        # Update group box titles
+        if hasattr(self, 'file_group'):
+            self.file_group.setTitle(self.tr("file_selection"))
+        if hasattr(self, 'lang_group'):
+            self.lang_group.setTitle(self.tr("language_selection"))
+        if hasattr(self, 'sheet_info_group'):
+            self.sheet_info_group.setTitle(self.tr("sheet_info"))
+        if hasattr(self, 'progress_group'):
+            self.progress_group.setTitle(self.tr("progress"))
+        
+        # Update language combo box labels
+        if hasattr(self, 'source_lang_label'):
+            self.source_lang_label.setText(self.tr("source_language"))
+        if hasattr(self, 'target_lang_label'):
+            self.target_lang_label.setText(self.tr("target_language"))
+        
+        # Update status bar
+        self.status_bar.showMessage(self.tr("ready"))
