@@ -31,5 +31,17 @@
     "english": "Tiếng Anh",
     "japanese": "Tiếng Nhật",
     "vietnamese": "Tiếng Việt",
-    "auto_detect": "Tự động phát hiện"
+    "auto_detect": "Tự động phát hiện",
+    "file_selection": "Chọn tệp",
+    "language_selection": "Chọn ngôn ngữ",
+    "sheet_info": "Thông tin sheet",
+    "ready": "Sẵn sàng",
+    "deepl_api_configuration": "Cấu hình DeepL API",
+    "application_settings": "Cài đặt ứng dụng",
+    "ok": "OK",
+    "language_settings": "Cài đặt ngôn ngữ",
+    "file": "Tệp",
+    "open_excel_file": "Mở tệp Excel",
+    "exit": "Thoát",
+    "preferences": "Tùy chọn"
 }

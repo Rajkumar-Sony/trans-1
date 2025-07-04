@@ -51,9 +51,44 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.settings = settings or {}
         self.parent_app = parent
-        self.setWindowTitle("Settings")
+        self.translations = {}  # Store translations for this dialog
+        self.load_translations()
+        
+        self.setWindowTitle(self.tr("settings"))
         self.setFixedSize(450, 300)  # Increased size for better layout
         self.init_ui()
+        
+        # Connect to parent's language changes if parent is provided
+        if self.parent_app and hasattr(self.parent_app, 'language_changed'):
+            self.parent_app.language_changed.connect(self.on_parent_language_changed)
+    
+    def on_parent_language_changed(self, lang_code: str):
+        """Handle language changes from parent app."""
+        # Only update if language actually changed
+        if self.settings.get('app_language', 'en') != lang_code:
+            self.settings['app_language'] = lang_code
+            self.update_language_instantly(lang_code)
+    
+    def load_translations(self):
+        """Load UI translations for the dialog."""
+        from pathlib import Path
+        import json
+        
+        i18n_dir = Path(__file__).parent.parent / 'i18n'
+        app_lang = self.settings.get('app_language', 'en')
+        
+        try:
+            translation_file = i18n_dir / f'{app_lang}.json'
+            if translation_file.exists():
+                with open(translation_file, 'r', encoding='utf-8') as f:
+                    self.translations = json.load(f)
+        except Exception as e:
+            print(f"Failed to load translations: {e}")
+            self.translations = {}
+    
+    def tr(self, key: str) -> str:
+        """Get translated string."""
+        return self.translations.get(key, key)
     
     def init_ui(self):
         """Initialize the settings UI."""
@@ -67,25 +102,27 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)  # Add margins
         
         # API Key section
-        api_group = QGroupBox("DeepL API Configuration")
+        self.api_group = QGroupBox(self.tr("deepl_api_configuration"))
         api_layout = QGridLayout()
         api_layout.setSpacing(10)  # Add spacing within the group
         
-        api_layout.addWidget(QLabel("API Key:"), 0, 0)
+        self.api_key_label = QLabel(self.tr("api_key") + ":")
+        api_layout.addWidget(self.api_key_label, 0, 0)
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setText(self.settings.get('api_key', ''))
         api_layout.addWidget(self.api_key_input, 0, 1)
         
-        api_group.setLayout(api_layout)
-        layout.addWidget(api_group)
+        self.api_group.setLayout(api_layout)
+        layout.addWidget(self.api_group)
         
         # App Configuration section
-        app_group = QGroupBox("Application Settings")
+        self.app_group = QGroupBox(self.tr("application_settings"))
         app_layout = QGridLayout()
         app_layout.setSpacing(10)  # Add spacing within the group
         
-        app_layout.addWidget(QLabel("App Language:"), 0, 0)
+        self.app_language_label = QLabel(self.tr("app_language") + ":")
+        app_layout.addWidget(self.app_language_label, 0, 0)
         self.app_language_combo = QComboBox()
         
         # Use language display names for app language too
@@ -111,14 +148,14 @@ class SettingsDialog(QDialog):
         
         app_layout.addWidget(self.app_language_combo, 0, 1)
         
-        app_group.setLayout(app_layout)
-        layout.addWidget(app_group)
+        self.app_group.setLayout(app_layout)
+        layout.addWidget(self.app_group)
         
         # Buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
         
         self.setLayout(layout)
     
@@ -131,12 +168,46 @@ class SettingsDialog(QDialog):
         # Update settings immediately
         self.settings['app_language'] = lang_code
         
-        # Emit signal to parent for instant update
-        self.language_changed.emit(lang_code)
+        # Update own translations and UI first
+        self.update_language_instantly(lang_code)
         
-        # Update parent app if available
+        # Update parent app if available (this will trigger the parent's language_changed signal)
         if self.parent_app:
             self.parent_app.update_language_instantly(lang_code)
+    
+    def update_language_instantly(self, lang_code: str):
+        """Update the settings dialog language instantly."""
+        # Update settings
+        self.settings['app_language'] = lang_code
+        
+        # Reload translations
+        self.load_translations()
+        
+        # Update UI texts
+        self.update_ui_texts()
+    
+    def update_ui_texts(self):
+        """Update all UI texts in the settings dialog."""
+        # Update window title
+        self.setWindowTitle(self.tr("settings"))
+        
+        # Update group box titles
+        if hasattr(self, 'api_group'):
+            self.api_group.setTitle(self.tr("deepl_api_configuration"))
+        if hasattr(self, 'app_group'):
+            self.app_group.setTitle(self.tr("application_settings"))
+        
+        # Update labels
+        if hasattr(self, 'api_key_label'):
+            self.api_key_label.setText(self.tr("api_key") + ":")
+        if hasattr(self, 'app_language_label'):
+            self.app_language_label.setText(self.tr("app_language") + ":")
+        
+        # Update button box (OK/Cancel buttons)
+        if hasattr(self, 'button_box'):
+            # Force button text update
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.tr("ok"))
+            self.button_box.button(QDialogButtonBox.StandardButton.Cancel).setText(self.tr("cancel"))
     
     def get_settings(self) -> Dict[str, Any]:
         """Get the current settings from the dialog."""
@@ -152,6 +223,8 @@ class SettingsDialog(QDialog):
 
 class ExcelTranslatorApp(QMainWindow):
     """Main application window."""
+    
+    language_changed = pyqtSignal(str)  # Signal for language changes
     
     def __init__(self):
         super().__init__()
@@ -247,7 +320,7 @@ class ExcelTranslatorApp(QMainWindow):
         self.create_menu_bar()
         
         # File selection section
-        file_group = QGroupBox(self.tr("upload_file"))
+        self.file_group = QGroupBox(self.tr("upload_file"))
         file_layout = QHBoxLayout()
         
         self.file_path_label = QLabel(self.tr("no_file_selected"))
@@ -259,8 +332,8 @@ class ExcelTranslatorApp(QMainWindow):
         
         file_layout.addWidget(self.file_path_label)
         file_layout.addWidget(self.select_file_btn)
-        file_group.setLayout(file_layout)
-        main_layout.addWidget(file_group)
+        self.file_group.setLayout(file_layout)
+        main_layout.addWidget(self.file_group)
         
         # Sheet information section
         self.sheet_info_group = QGroupBox(self.tr("sheets_detected"))
@@ -272,7 +345,7 @@ class ExcelTranslatorApp(QMainWindow):
         main_layout.addWidget(self.sheet_info_group)
         
         # Language selection section
-        lang_group = QGroupBox("Language Settings")
+        self.lang_group = QGroupBox(self.tr("language_settings"))
         lang_layout = QGridLayout()
         
         # Set column stretch to push ComboBoxes to the right with flexible sizing
@@ -280,7 +353,8 @@ class ExcelTranslatorApp(QMainWindow):
         lang_layout.setColumnStretch(1, 1)  # Spacer column - expands to push combo to right
         lang_layout.setColumnStretch(2, 0)  # ComboBox column - no stretch
         
-        lang_layout.addWidget(QLabel(self.tr("source_language")), 0, 0)
+        self.source_lang_label = QLabel(self.tr("source_language"))
+        lang_layout.addWidget(self.source_lang_label, 0, 0)
         self.source_lang_combo = QComboBox()
         
         # Add language items with display names
@@ -296,7 +370,8 @@ class ExcelTranslatorApp(QMainWindow):
         
         lang_layout.addWidget(self.source_lang_combo, 0, 2)  # Right-aligned in column 2
         
-        lang_layout.addWidget(QLabel(self.tr("target_language")), 1, 0)
+        self.target_lang_label = QLabel(self.tr("target_language"))
+        lang_layout.addWidget(self.target_lang_label, 1, 0)
         self.target_lang_combo = QComboBox()
         
         # Add language items with display names
@@ -312,8 +387,8 @@ class ExcelTranslatorApp(QMainWindow):
         
         lang_layout.addWidget(self.target_lang_combo, 1, 2)  # Right-aligned in column 2
         
-        lang_group.setLayout(lang_layout)
-        main_layout.addWidget(lang_group)
+        self.lang_group.setLayout(lang_layout)
+        main_layout.addWidget(self.lang_group)
         
         # Action buttons
         button_layout = QHBoxLayout()
@@ -338,7 +413,7 @@ class ExcelTranslatorApp(QMainWindow):
         main_layout.addLayout(button_layout)
         
         # Progress section
-        progress_group = QGroupBox(self.tr("progress"))
+        self.progress_group = QGroupBox(self.tr("progress"))
         progress_layout = QVBoxLayout()
         
         self.progress_bar = QProgressBar()
@@ -346,11 +421,11 @@ class ExcelTranslatorApp(QMainWindow):
         
         progress_layout.addWidget(self.progress_bar)
         progress_layout.addWidget(self.progress_label)
-        progress_group.setLayout(progress_layout)
-        main_layout.addWidget(progress_group)
+        self.progress_group.setLayout(progress_layout)
+        main_layout.addWidget(self.progress_group)
         
         # Log section
-        log_group = QGroupBox("Log")
+        self.log_group = QGroupBox("Log")
         log_layout = QVBoxLayout()
         
         self.log_text = QTextEdit()
@@ -358,37 +433,37 @@ class ExcelTranslatorApp(QMainWindow):
         self.log_text.setReadOnly(True)
         
         log_layout.addWidget(self.log_text)
-        log_group.setLayout(log_layout)
-        main_layout.addWidget(log_group)
+        self.log_group.setLayout(log_layout)
+        main_layout.addWidget(self.log_group)
         
         # Status bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Ready")
+        self.status_bar.showMessage(self.tr("ready"))
     
     def create_menu_bar(self):
         """Create the application menu bar."""
-        menubar = self.menuBar()
+        self.menubar = self.menuBar()
         
         # File menu
-        file_menu = menubar.addMenu('File')
+        self.file_menu = self.menubar.addMenu(self.tr("file"))
         
-        open_action = QAction('Open Excel File', self)
-        open_action.triggered.connect(self.select_file)
-        file_menu.addAction(open_action)
+        self.open_action = QAction(self.tr("open_excel_file"), self)
+        self.open_action.triggered.connect(self.select_file)
+        self.file_menu.addAction(self.open_action)
         
-        file_menu.addSeparator()
+        self.file_menu.addSeparator()
         
-        exit_action = QAction('Exit', self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
+        self.exit_action = QAction(self.tr("exit"), self)
+        self.exit_action.triggered.connect(self.close)
+        self.file_menu.addAction(self.exit_action)
         
         # Settings menu
-        settings_menu = menubar.addMenu('Settings')
+        self.settings_menu = self.menubar.addMenu(self.tr("settings"))
         
-        settings_action = QAction('Preferences', self)
-        settings_action.triggered.connect(self.open_settings)
-        settings_menu.addAction(settings_action)
+        self.settings_action = QAction(self.tr("preferences"), self)
+        self.settings_action.triggered.connect(self.open_settings)
+        self.settings_menu.addAction(self.settings_action)
     
     def apply_theme(self):
         """Apply the dark theme."""
@@ -589,6 +664,10 @@ class ExcelTranslatorApp(QMainWindow):
     def open_settings(self):
         """Open settings dialog."""
         dialog = SettingsDialog(self, self.settings)
+        
+        # Connect dialog's language change signal to main window
+        dialog.language_changed.connect(self.update_language_instantly)
+        
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_settings = dialog.get_settings()
             self.settings.update(new_settings)
@@ -662,6 +741,9 @@ class ExcelTranslatorApp(QMainWindow):
         # Update UI texts
         self.update_ui_texts()
         
+        # Emit signal to notify other dialogs (like settings dialog)
+        self.language_changed.emit(lang_code)
+        
         # Save settings
         self.save_settings()
         
@@ -671,6 +753,18 @@ class ExcelTranslatorApp(QMainWindow):
         """Update all UI texts with current translations."""
         # Update window title
         self.setWindowTitle(self.tr("app_title"))
+        
+        # Update menu bar
+        if hasattr(self, 'file_menu'):
+            self.file_menu.setTitle(self.tr("file"))
+        if hasattr(self, 'settings_menu'):
+            self.settings_menu.setTitle(self.tr("settings"))
+        if hasattr(self, 'open_action'):
+            self.open_action.setText(self.tr("open_excel_file"))
+        if hasattr(self, 'exit_action'):
+            self.exit_action.setText(self.tr("exit"))
+        if hasattr(self, 'settings_action'):
+            self.settings_action.setText(self.tr("preferences"))
         
         # Update button texts
         if hasattr(self, 'select_file_btn'):
@@ -684,13 +778,15 @@ class ExcelTranslatorApp(QMainWindow):
         
         # Update group box titles
         if hasattr(self, 'file_group'):
-            self.file_group.setTitle(self.tr("file_selection"))
+            self.file_group.setTitle(self.tr("upload_file"))
         if hasattr(self, 'lang_group'):
-            self.lang_group.setTitle(self.tr("language_selection"))
+            self.lang_group.setTitle(self.tr("language_settings"))
         if hasattr(self, 'sheet_info_group'):
-            self.sheet_info_group.setTitle(self.tr("sheet_info"))
+            self.sheet_info_group.setTitle(self.tr("sheets_detected"))
         if hasattr(self, 'progress_group'):
             self.progress_group.setTitle(self.tr("progress"))
+        if hasattr(self, 'log_group'):
+            self.log_group.setTitle("Log")  # Keep as "Log" for now
         
         # Update language combo box labels
         if hasattr(self, 'source_lang_label'):
@@ -699,4 +795,9 @@ class ExcelTranslatorApp(QMainWindow):
             self.target_lang_label.setText(self.tr("target_language"))
         
         # Update status bar
-        self.status_bar.showMessage(self.tr("ready"))
+        if hasattr(self, 'status_bar'):
+            self.status_bar.showMessage(self.tr("ready"))
+        
+        # Update file path label if no file selected
+        if hasattr(self, 'file_path_label') and self.file_path_label.text() in ["No file selected", "ファイルが選択されていません", "Không có tệp nào được chọn"]:
+            self.file_path_label.setText(self.tr("no_file_selected"))

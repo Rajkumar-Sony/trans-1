@@ -31,5 +31,17 @@
     "english": "英語",
     "japanese": "日本語",
     "vietnamese": "ベトナム語",
-    "auto_detect": "自動検出"
+    "auto_detect": "自動検出",
+    "file_selection": "ファイル選択",
+    "language_selection": "言語選択",
+    "sheet_info": "シート情報",
+    "ready": "準備完了",
+    "deepl_api_configuration": "DeepL API設定",
+    "application_settings": "アプリケーション設定",
+    "ok": "OK",
+    "language_settings": "言語設定",
+    "file": "ファイル",
+    "open_excel_file": "Excelファイルを開く",
+    "exit": "終了",
+    "preferences": "設定"
 }

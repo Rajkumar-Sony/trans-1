@@ -31,5 +31,17 @@
     "english": "English",
     "japanese": "Japanese",
     "vietnamese": "Vietnamese",
-    "auto_detect": "Auto Detect"
+    "auto_detect": "Auto Detect",
+    "file_selection": "File Selection",
+    "language_selection": "Language Selection",
+    "sheet_info": "Sheet Information",
+    "ready": "Ready",
+    "deepl_api_configuration": "DeepL API Configuration",
+    "application_settings": "Application Settings",
+    "ok": "OK",
+    "language_settings": "Language Settings",
+    "file": "File",
+    "open_excel_file": "Open Excel File",
+    "exit": "Exit",
+    "preferences": "Preferences"
 }
