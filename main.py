@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt, QLocale, QTranslator
 from PyQt6.QtGui import QIcon, QFont
 
-from ui.main_window import ExcelTranslatorApp
+from gui.windows.main_window import ModernMainWindow
 
 
 def setup_logging():
@@ -115,7 +115,7 @@ def main():
         app = setup_application()
         
         # Create and show main window
-        window = ExcelTranslatorApp()
+        window = ModernMainWindow()
         window.show()
         
         # Center the window on screen
